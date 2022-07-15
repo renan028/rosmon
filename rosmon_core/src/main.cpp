@@ -68,7 +68,8 @@ void usage()
 		"  --flush-log     Flush logfile after writing an entry\n"
 		"  --flush-stdout  Flush stdout after writing an entry\n"
 		"  --help          This help screen\n"
-		"  --log=FILE      Write log file to FILE (use 'syslog' for syslog)\n"
+		"  --log=FILE      Write log file to FILE\n"
+		"  --log-with-time Add time to log file name\n"
 		"  --name=NAME     Use NAME as ROS node name. By default, an anonymous\n"
 		"                  name is chosen.\n"
 		"  --no-start      Don't automatically start the nodes in the beginning\n"
@@ -132,6 +133,7 @@ static const struct option OPTIONS[] = {
 	{"help", no_argument, nullptr, 'h'},
 	{"list-args", no_argument, nullptr, 'L'},
 	{"log",  required_argument, nullptr, 'l'},
+	{"log-with-time",  no_argument, nullptr, 't'},
 	{"name", required_argument, nullptr, 'n'},
 	{"no-start", no_argument, nullptr, 'S'},
 	{"stop-timeout", required_argument, nullptr, 's'},
@@ -166,6 +168,7 @@ int main(int argc, char** argv)
 {
 	std::string name;
 	std::string logFile;
+	bool log_with_time = false;
 	std::string launchFilePath;
 
 	Action action = ACTION_LAUNCH;
@@ -199,6 +202,9 @@ int main(int argc, char** argv)
 				break;
 			case 'l':
 				logFile = optarg;
+				break;
+			case 't':
+				log_with_time = true;
 				break;
 			case 'L':
 				action = ACTION_LIST_ARGS;
@@ -383,20 +389,27 @@ int main(int argc, char** argv)
 		}
 		else
 		{
-			if(logFile.empty())
-			{
-				fmt::print("Tip: use --log=syslog or set environment variable ROSMON_SYSLOG=1 to send log output to syslog instead of a log file in /tmp.\n");
+      if (logFile.empty() || log_with_time)
+      {
+        fmt::print("Tip: use --log=syslog or set environment variable ROSMON_SYSLOG=1 to send log output to syslog instead of a log file in /tmp.\n");
 
-				// Create log file in /tmp
-				std::time_t t = std::time(nullptr);
-				std::tm currentTime = fmt::localtime(t);
+        // Create log file in /tmp
+        std::time_t t = std::time(nullptr);
+        std::tm currentTime = fmt::localtime(t);
 
-				logFile = fmt::format("/tmp/rosmon_{:%Y_%m_%d_%H_%M_%S}.log", currentTime);
-			}
+        char buf[256];
+        strftime(buf, sizeof(buf), "_%Y_%m_%d_%H_%M_%S.log", &currentTime);
 
-			logger.reset(new rosmon::FileLogger(logFile, flushLog));
+        if (logFile.find(".log") != std::string::npos)
+        {
+          logFile = logFile.substr(0, logFile.find(".log"));
+        }
 
-			// Old-style logging means we will enable per-node log files in ~/.ros as well.
+        logFile = logFile.empty() ? "/tmp/rosmon" + std::string(buf) : logFile + std::string(buf);
+        logger.reset(new rosmon::FileLogger(logFile, flushLog));
+      }
+
+      // Old-style logging means we will enable per-node log files in ~/.ros as well.
 			if(auto val = getenv("ROS_LOG_DIR"))
 				nodeLogPath = val;
 			else if(auto val = getenv("ROS_HOME"))
