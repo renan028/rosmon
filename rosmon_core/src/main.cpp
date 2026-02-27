@@ -114,9 +114,10 @@ void logToStdout(const rosmon::LogEvent& event, const int max_width)
 	if(event.channel == rosmon::LogEvent::Channel::Stdout && !event.showStdout)
 		return;
 
-	fmt::print("{:>{}}: {}", event.source, max_width, event.message);
+	std::string colored = event.coloredString();
+	fmt::print("{}: {}", event.source, colored);
 
-	if(!event.message.empty() && event.message.back() != '\n')
+	if(!colored.empty() && colored.back() != '\n')
 		std::cout << '\n';
 
 	if(g_flushStdout)
